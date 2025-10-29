@@ -146,25 +146,51 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
-        // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
+        int index = Collections.binarySearch(keys, key);
 
-        return Optional.empty();
+        if (index >= 0) {
+            throw new BPlusTreeException("Duplicate keys are not allowed.");
+        }
+
+        int insertionPoint = -index - 1;
+        keys.add(key);
+        rids.add(rid);
+
+        sync();
+
+        int d = metadata.getOrder();
+        if (keys.size() <= 2 * d) {
+            return Optional.empty();
+        }
+
+        List<DataBox> leftKeys = new ArrayList<>(keys.subList(0, d));
+        List<RecordId> leftRids = new ArrayList<>(rids.subList(0, d));
+
+        List<DataBox> rightKeys = new ArrayList<>(keys.subList(d, 2 * d + 1));
+        List<RecordId> rightRids = new ArrayList<>(rids.subList(d, 2 * d + 1));
+
+        LeafNode rightSibling = new LeafNode(metadata, bufferManager, rightKeys, rightRids, this.rightSibling, treeContext);
+        long rightSiblingPageNum = rightSibling.getPage().getPageNum();
+        this.keys = leftKeys;
+        this.rids = leftRids;
+        this.rightSibling = Optional.of(rightSiblingPageNum);
+        sync();
+
+        DataBox splitKey = rightKeys.get(0);
+
+        return Optional.of(new Pair<>(splitKey, rightSiblingPageNum));
     }
 
     // See BPlusNode.bulkLoad.
@@ -179,9 +205,8 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
-
-        return;
+        this.keys.remove(key);
+        sync();
     }
 
     // Iterators ///////////////////////////////////////////////////////////////

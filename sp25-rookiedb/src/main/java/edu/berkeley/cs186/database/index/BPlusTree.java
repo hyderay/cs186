@@ -145,9 +145,8 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): implement
-
-        return Optional.empty();
+        LeafNode leaf = root.get(key);
+        return leaf.getKey(key);
     }
 
     /**
@@ -253,12 +252,25 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): implement
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
+        Optional<Pair<DataBox, Long>> splitResult = root.put(key, rid);
 
-        return;
+        if (splitResult.isPresent()) {
+            DataBox newKey = splitResult.get().getFirst();
+            long newRightSibling = splitResult.get().getSecond();
+            long newLeftChildren = root.getPage().getPageNum();
+
+            List<DataBox> newKeys = new ArrayList<>();
+            newKeys.add(newKey);
+            List<Long> newChildren = new ArrayList<>();
+            newChildren.add(newLeftChildren);
+            newChildren.add(newRightSibling);
+
+            BPlusNode newRoot = new InnerNode(metadata, bufferManager, newKeys, newChildren, lockContext);
+            updateRoot(newRoot);
+        }
     }
 
     /**
@@ -308,9 +320,7 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): implement
-
-        return;
+        root.remove(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
