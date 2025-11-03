@@ -200,9 +200,8 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): Return a BPlusTreeIterator.
 
-        return Collections.emptyIterator();
+        return new BPlusTreeIterator();
     }
 
     /**
@@ -233,9 +232,8 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): Return a BPlusTreeIterator.
 
-        return Collections.emptyIterator();
+        return new BPlusTreeIterator(key);
     }
 
     /**
@@ -432,20 +430,45 @@ public class BPlusTree {
 
     // Iterator ////////////////////////////////////////////////////////////////
     private class BPlusTreeIterator implements Iterator<RecordId> {
-        // TODO(proj2): Add whatever fields and constructors you want here.
+
+        private LeafNode currentLeaf;
+        private Iterator<RecordId> currentIterator;
+
+        public BPlusTreeIterator() {
+            currentLeaf = root.getLeftmostLeaf();
+            currentIterator = currentLeaf.scanAll();
+        }
+
+        public BPlusTreeIterator(DataBox key) {
+            currentLeaf = root.get(key);
+            currentIterator = currentLeaf.scanGreaterEqual(key);
+        }
 
         @Override
         public boolean hasNext() {
-            // TODO(proj2): implement
+            while (true) {
+                if (currentIterator.hasNext()) {
+                    return true;
+                }
 
-            return false;
+                Optional<LeafNode> rightSibling = currentLeaf.getRightSibling();
+
+                if (!rightSibling.isPresent()) {
+                    return false;
+                }
+
+                currentLeaf = rightSibling.get();
+                currentIterator = currentLeaf.scanAll();
+            }
         }
 
         @Override
         public RecordId next() {
-            // TODO(proj2): implement
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
 
-            throw new NoSuchElementException();
+            return currentIterator.next();
         }
     }
 }

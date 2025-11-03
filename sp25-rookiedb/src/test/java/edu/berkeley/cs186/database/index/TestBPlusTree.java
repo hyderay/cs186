@@ -485,4 +485,117 @@ public class TestBPlusTree {
         assertEquals(3, InnerNode.maxOrder(pageSizeInBytes, keySchema));
         assertEquals(3, BPlusTree.maxOrder(pageSizeInBytes, keySchema));
     }
+
+    /**
+     * Tests that the tree correctly handles a 'get' for a key that does
+     * not exist, in a non-empty tree.
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testGetNonExistent() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+
+        // Insert some keys
+        tree.put(new IntDataBox(10), new RecordId(10, (short) 10));
+        tree.put(new IntDataBox(20), new RecordId(20, (short) 20));
+        tree.put(new IntDataBox(30), new RecordId(30, (short) 30));
+
+        // Test keys that don't exist
+        assertEquals(Optional.empty(), tree.get(new IntDataBox(0)));   // Key before all
+        assertEquals(Optional.empty(), tree.get(new IntDataBox(15)));  // Key in the middle
+        assertEquals(Optional.empty(), tree.get(new IntDataBox(99)));  // Key after all
+    }
+
+    /**
+     * Tests that attempting to remove a key that does not exist
+     * does not modify the tree or throw an error.
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testRemoveNonExistent() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+
+        tree.put(new IntDataBox(10), new RecordId(10, (short) 10));
+        tree.put(new IntDataBox(20), new RecordId(20, (short) 20));
+
+        // Get the S-expression to check for changes
+        String originalSexp = tree.toSexp();
+
+        // Remove a key that doesn't exist
+        tree.remove(new IntDataBox(15));
+
+        // The tree should be unchanged
+        assertEquals(originalSexp, tree.toSexp());
+
+        // Remove a key that *does* exist
+        tree.remove(new IntDataBox(10));
+        String newSexp = tree.toSexp();
+
+        // The tree should have changed
+        assertNotEquals(originalSexp, newSexp);
+
+        // Remove the *same key* again (it's now non-existent)
+        tree.remove(new IntDataBox(10));
+
+        // The tree should be unchanged from the last remove
+        assertEquals(newSexp, tree.toSexp());
+    }
+
+    /**
+     * Tests that attempting to put a duplicate key throws a
+     * BPlusTreeException, as specified.
+     */
+    @Test(expected = BPlusTreeException.class)
+    @Category(PublicTests.class)
+    public void testDuplicatePutThrowsException() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+
+        // This put is fine
+        tree.put(new IntDataBox(10), new RecordId(10, (short) 10));
+        // This put forces a leaf split
+        tree.put(new IntDataBox(30), new RecordId(30, (short) 30));
+        // This put forces an inner node split (and new root)
+        tree.put(new IntDataBox(20), new RecordId(20, (short) 20));
+
+        // This put should throw the exception
+        tree.put(new IntDataBox(20), new RecordId(20, (short) 20));
+    }
+
+    /**
+     * Tests the hint: removes all items from a tree and ensures
+     * that new iterators are empty.
+     */
+    @Test
+    @Category(HiddenTests.class)
+    public void testRemoveAllThenScan() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+        List<DataBox> keys = new ArrayList<>();
+
+        // 1. Insert 100 items
+        for (int i = 0; i < 100; i++) {
+            DataBox key = new IntDataBox(i);
+            keys.add(key);
+            tree.put(key, new RecordId(i, (short) i));
+        }
+
+        // 2. Check that scanAll finds 100 items
+        assertEquals(100, indexIteratorToList(tree::scanAll).size());
+
+        // 3. Remove all 100 items
+        for (DataBox key : keys) {
+            tree.remove(key);
+        }
+
+        // 4. Check that 'get' returns empty for all removed keys
+        for (DataBox key : keys) {
+            assertEquals(Optional.empty(), tree.get(key));
+        }
+
+        // 5. Check that new iterators are empty
+        assertFalse("scanAll().hasNext() should be false after all items are deleted",
+                tree.scanAll().hasNext());
+        assertFalse("scanGreaterEqual(0).hasNext() should be false after all items are deleted",
+                tree.scanGreaterEqual(new IntDataBox(0)).hasNext());
+        assertEquals(0, indexIteratorToList(tree::scanAll).size());
+    }
 }

@@ -165,13 +165,12 @@ class LeafNode extends BPlusNode {
         }
 
         int insertionPoint = -index - 1;
-        keys.add(key);
-        rids.add(rid);
-
-        sync();
+        keys.add(insertionPoint, key);
+        rids.add(insertionPoint, rid);
 
         int d = metadata.getOrder();
         if (keys.size() <= 2 * d) {
+            sync();
             return Optional.empty();
         }
 

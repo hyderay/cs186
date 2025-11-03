@@ -110,10 +110,9 @@ class InnerNode extends BPlusNode {
         this.keys.add(childIndex, splitKey);
         this.children.add(childIndex + 1, rightSiblingPageNum);
 
-        sync();
-
         int d = metadata.getOrder();
         if (keys.size() <= 2 * d) {
+            sync();
             return Optional.empty();
         }
 
