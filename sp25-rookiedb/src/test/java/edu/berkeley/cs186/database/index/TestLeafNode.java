@@ -330,4 +330,25 @@ public class TestLeafNode {
             assertEquals(leaf, LeafNode.fromBytes(metadata, bufferManager, treeContext, pageNum));
         }
     }
+
+    /**
+     * Tests that attempting to remove a key from an already empty leaf
+     * does not cause an error.
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testRemoveFromEmptyLeaf() {
+        setBPlusTreeMetadata(Type.intType(), 5);
+        LeafNode leaf = getEmptyLeaf(Optional.empty());
+
+        // Assert the leaf is empty
+        assertEquals(0, leaf.getKeys().size());
+
+        // Attempt to remove a key
+        leaf.remove(new IntDataBox(10));
+
+        // Assert the leaf is still empty and no error was thrown
+        assertEquals(0, leaf.getKeys().size());
+        assertEquals("()", leaf.toSexp());
+    }
 }

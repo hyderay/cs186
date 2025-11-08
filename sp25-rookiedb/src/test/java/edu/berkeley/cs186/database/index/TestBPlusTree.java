@@ -598,4 +598,130 @@ public class TestBPlusTree {
                 tree.scanGreaterEqual(new IntDataBox(0)).hasNext());
         assertEquals(0, indexIteratorToList(tree::scanAll).size());
     }
+
+    /**
+     * Tests bulk loading into an empty tree with an empty iterator.
+     * The tree should remain an empty leaf node.
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testBulkLoadNoData() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+
+        tree.bulkLoad(data.iterator(), 0.75f);
+
+        // S-expression for an empty leaf
+        assertEquals("()", tree.toSexp());
+        // Height should still be 0 (the initial leaf)
+        assertEquals(0, tree.getMetadata().getHeight());
+    }
+
+    /**
+     * Tests bulk loading data that fits entirely within the first leaf
+     * (less than the fillFactor).
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testBulkLoadPartialLeaf() {
+        // d=2, 2*d = 4. fillFactor=0.75. maxEntries = ceil(4 * 0.75) = 3
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        data.add(new Pair<>(new IntDataBox(1), new RecordId(1, (short) 1)));
+        data.add(new Pair<>(new IntDataBox(2), new RecordId(2, (short) 2)));
+
+        tree.bulkLoad(data.iterator(), 0.75f);
+
+        // Tree should be a single leaf with 2 entries
+        String expected = "((1 (1 1)) (2 (2 2)))";
+        assertEquals(expected, tree.toSexp());
+        assertEquals(0, tree.getMetadata().getHeight());
+    }
+
+    /**
+     * Tests the exact moment a leaf "splits" during bulkLoad.
+     * With d=2, fillFactor=0.75, max leaf entries = 3.
+     * Loading 4 items should result in:
+     * - Leaf 1: 3 items
+     * - Leaf 2: 1 item
+     * - A new InnerNode root pointing to them.
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testBulkLoadLeafSplit() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2); // d=2
+
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        // fillFactor=0.75 * 2*d = 3. The 4th item causes the split.
+        for (int i = 1; i <= 4; i++) {
+            data.add(new Pair<>(new IntDataBox(i), new RecordId(i, (short) i)));
+        }
+
+        tree.bulkLoad(data.iterator(), 0.75f);
+
+        // We expect a new root and two leaves
+        String leaf0 = "((1 (1 1)) (2 (2 2)) (3 (3 3)))"; // 3 items (max fill)
+        String leaf1 = "((4 (4 4)))";                   // 1 item (the next one)
+        String expected = String.format("(%s 4 %s)", leaf0, leaf1);
+
+        assertEquals(expected, tree.toSexp());
+        assertEquals(1, tree.getMetadata().getHeight());
+    }
+
+    /**
+     * Tests that bulk loading throws an exception if the tree is not empty.
+     */
+    @Test(expected = BPlusTreeException.class)
+    @Category(PublicTests.class)
+    public void testBulkLoadOnNonEmptyTree() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+
+        // Put one item, making the tree "non-empty"
+        tree.put(new IntDataBox(1), new RecordId(1, (short) 1));
+
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        data.add(new Pair<>(new IntDataBox(2), new RecordId(2, (short) 2)));
+
+        // This should throw an exception
+        tree.bulkLoad(data.iterator(), 0.75f);
+    }
+
+    /**
+     * Tests a large bulk load that forces the root InnerNode to split,
+     * increasing the tree height to 2.
+     */
+    @Test
+    @Category(HiddenTests.class)
+    public void testBulkLoadRootSplit() {
+        // d=1, fillFactor=1.0, maxLeafEntries = ceil(2*1*1.0) = 2
+        BPlusTree tree = getBPlusTree(Type.intType(), 1);
+
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        for (int i = 1; i <= 7; i++) {  // Use 7 items instead of 9
+            data.add(new Pair<>(new IntDataBox(i), new RecordId(i, (short) i)));
+        }
+
+        tree.bulkLoad(data.iterator(), 1.0f);
+
+        // With 7 items, d=1, fillFactor=1.0:
+        // Leaves: [1,2], [3,4], [5,6], [7]
+        // This will create a height-3 tree
+
+        String l1 = "((1 (1 1)) (2 (2 2)))";
+        String l2 = "((3 (3 3)) (4 (4 4)))";
+        String l3 = "((5 (5 5)) (6 (6 6)))";
+        String l4 = "((7 (7 7)))";
+
+        // Inner level: first has [1,2], [3,4], second has [5,6], [7]
+        String i1 = String.format("(%s 3 %s)", l1, l2);
+        String i2 = String.format("(%s 7 %s)", l3, l4);
+
+        // Root level
+        String root = String.format("(%s 5 %s)", i1, i2);
+
+        assertEquals(root, tree.toSexp());
+        assertEquals(2, tree.getMetadata().getHeight());
+    }
 }

@@ -415,4 +415,32 @@ public class TestInnerNode {
             assertEquals(inner, parsed);
         }
     }
+
+    /**
+     * Tests that attempting to remove a key that does not exist in
+     * the tree is handled gracefully.
+     */
+    @Test
+    @Category(PublicTests.class)
+    public void testRecursiveRemoveNonExistent() {
+        // Tree state is:
+        // (leaf0) 10 (leaf1) 20 (leaf2)
+        // leaf0 = [1, 2, 3]
+        // leaf1 = [11, 12, 13]
+        // leaf2 = [21, 22, 23]
+
+        // Get the S-expression to check for changes
+        String originalSexp = inner.toSexp();
+
+        // Attempt to remove a key that doesn't exist
+        inner.remove(new IntDataBox(15)); // Should go to leaf1
+        inner.remove(new IntDataBox(99)); // Should go to leaf2
+        inner.remove(new IntDataBox(-5)); // Should go to leaf0
+
+        // The S-expression should be identical
+        assertEquals(originalSexp, inner.toSexp());
+
+        // Check that the underlying leaves were not modified
+        checkTreeMatchesExpectations();
+    }
 }
